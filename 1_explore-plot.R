@@ -17,25 +17,9 @@ options(czso.dest_dir = "data-input/czso")
 # nepoužívat exponenciální zobrazení čísel
 options(scipen = 99)
 
-# Prozkoumat katalog ČSÚ --------------------------------------------------
-
-czso_kat <- czso_get_catalogue()
-czso_kat |>
-  czso_filter_catalogue(c("vazba", "obec", "orp")) |>
-  select(description, dataset_id, title)
-
-czso_kat |>
-  czso_filter_catalogue(c("struktura", "území")) |>
-  select(description, dataset_id, title)
-
-obce_cis <- czso_get_codelist("cis43")
-obce_vaz_kraj <- czso_get_codelist("cis108vaz43")
-orp_vaz_kraj <- czso_get_codelist("cis108vaz65")
-
-obce_vaz_orp_centrum <- czso_get_codelist("cis43vaz65")
-obce_vaz_orp <- czso_get_codelist("cis65vaz43")
-
 # Načíst rozpočtová data obcí za rok 2023 --------------------------------
+
+sp_tables
 
 rozp_mist <- sp_get_table("budget-local", year = 2023, month = 12)
 colnames(rozp_mist)
@@ -44,12 +28,13 @@ colnames(rozp_mist)
 
 struktura_uzemi <- czso_get_table("struktura_uzemi_cr")
 
-
 ## Obce a jejich počty obyvatel  -----------------------------------------
 
-kkk |>
+czso_kat <- czso_get_catalogue()
+
+czso_kat |>
   czso_filter_catalogue(c("obyv", "obce")) |>
-  select(description, title, dataset_id, )
+  select(title, description, dataset_id)
 
 # Načíst tuto sadu
 
@@ -61,9 +46,14 @@ czso_get_table_schema("130149")
 
 # Pozor, obsahuje data za různé typy území
 
+skimr::skim(obyv_obce0)
+
 obyv_obce0 |>
   count(uzemi_cis, obdobi) |>
   spread(uzemi_cis, n)
+
+obyv_obce0 |>
+  count(uzemi_typ)
 
 # A taky věkový rozpad
 
@@ -73,17 +63,20 @@ obyv_obce0 |>
 # Vyberme tedy jen to, co potřebujeme
 
 obyv_obce <- obyv_obce0 |>
-  filter(uzemi_cis == "43", obdobi == "2023-12-31",
+  filter(uzemi_typ == "obec", obdobi == "2023-12-31",
          is.na(pohlavi_kod), is.na(vek_kod)) |>
 # Přejmenovat sloupce, abychom se v tom vyznali
   select(pocobyv = hodnota, obec_kod = uzemi_kod)
 
 ## Vybrat obce, které jsou sídlem ORP --------------------------------------
 
-struktura_sidla_orp <- struktura_uzemi |>
+centra_orp <- struktura_uzemi |>
   filter(obec_kod == orp_sidlo_obec_kod)
 
 ## Načíst metadata organizací ve SP ----------------------------------------
+
+# Ty jsou předpřipravané:
+# obsahují jen obce platné v roce 2023
 
 orgs <- read_parquet("data-processed/orgs_proc.parquet")
 names(orgs)
@@ -94,7 +87,7 @@ dta <- rozp_mist |>
   # funkce na správné přiřazení číselníku k datům SP
   sp_add_codelist(orgs, by = "ico") |>
   # připojíme číselník obcí ORP, necháme jen jejich data
-  inner_join(struktura_sidla_orp, by = join_by(zuj_id == obec_kod)) |>
+  inner_join(centra_orp, by = join_by(zuj_id == obec_kod)) |>
   # připojíme údaje o počty obyvatel
   left_join(obyv_obce, by = join_by(zuj_id == obec_kod)) |>
   # přidáme číselník druhového členění rozpočtové skladby
@@ -105,13 +98,15 @@ names(dta)
 # Jak se dobrat daně z nemovitosti? ---------------------------------------
 
 dta |>
-  filter(druhuj_nazev == "Obce", trida == "Daňové příjmy") |>
-  count(polozka_nazev)
+  distinct(druh, trida)
 
+dta |>
+  filter(trida == "Daňové příjmy") |>
+  distinct(polozka_nazev)
 
 # Ha! ---------------------------------------------------------------------
 
-ggg <- dta |>
+p_boxplot <- dta |>
   filter(polozka_nazev == "Příjem z daně z nemovitých věcí", druhuj_nazev == "Obce") |>
   mutate(kraj_text = as.factor(kraj_text) |> fct_reorder(budget_spending / pocobyv)) |>
   ggplot(aes(budget_spending/pocobyv, kraj_text)) +
@@ -121,28 +116,28 @@ ggg <- dta |>
   guides() +
   geom_boxplot_interactive(outliers = FALSE)
 
-ggg
+p_boxplot
 
-girafe(ggobj = ggg)
+girafe(ggobj = p_boxplot)
 
 
-gga <- dta |>
+p_dotplot <- dta |>
   filter(polozka_nazev == "Příjem z daně z nemovitých věcí") |>
   mutate(kraj_text = as.factor(kraj_text) |> fct_reorder(budget_spending / pocobyv)) |>
-  ggplot(aes(budget_spending/pocobyv, pocobyv/1000))+
+  ggplot(aes(pocobyv/1000, budget_spending/pocobyv))+
   geom_point_interactive(aes(tooltip = obec_text), alpha = .4) +
   scale_y_log10(breaks = scales::breaks_log(n = 8, base = 10)) +
   scale_x_log10(breaks = scales::breaks_log(n = 4, base = 10))
 
-girafe(ggobj = gga)
+girafe(ggobj = p_dotplot)
 
-ggb <- dta |>
+p_dotplot_facet <- dta |>
   filter(polozka_nazev == "Příjem z daně z nemovitých věcí") |>
   mutate(kraj_text = as.factor(kraj_text) |> fct_reorder(budget_spending / pocobyv)) |>
-  ggplot(aes(budget_spending/pocobyv, pocobyv/1000))+
+  ggplot(aes(pocobyv/1000, budget_spending/pocobyv))+
   geom_point_interactive(aes(tooltip = obec_text), alpha = .4) +
   scale_y_log10(breaks = scales::breaks_log(n = 8, base = 10)) +
   scale_x_log10(breaks = scales::breaks_log(n = 4, base = 10)) +
   facet_wrap(~kraj_text)
 
-girafe(ggobj = ggb)
+girafe(ggobj = p_dotplot_facet)
