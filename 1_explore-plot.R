@@ -23,6 +23,7 @@ sp_tables
 
 rozp_mist <- sp_get_table("budget-local", year = 2023, month = 12)
 colnames(rozp_mist)
+skimr::skim(rozp_mist)
 
 # Údaje o obcích  --------------------------------------------------
 
@@ -75,7 +76,7 @@ centra_orp <- struktura_uzemi |>
 
 ## Načíst metadata organizací ve SP ----------------------------------------
 
-# Ty jsou předpřipravané:
+# Ty jsou předpřipravané, viz 00_preprocess.R
 # obsahují jen obce platné v roce 2023
 
 orgs <- read_parquet("data-processed/orgs_proc.parquet")
@@ -95,19 +96,69 @@ dta <- rozp_mist |>
 
 names(dta)
 
+length(unique(dta$ico))
+
 # Jak se dobrat daně z nemovitosti? ---------------------------------------
 
 dta |>
   distinct(druh, trida)
 
 dta |>
-  filter(trida == "Daňové příjmy") |>
-  distinct(polozka_nazev)
+  distinct(druh, seskupeni)
+
+dta |>
+  filter(trida == "Daňové příjmy", seskupeni == "Příjem z majetkových daní") |>
+  distinct(podseskupeni, polozka_nazev, polozka)
 
 # Ha! ---------------------------------------------------------------------
 
+## Jak to vypadá? ---------------------------------------------------------
+
+dta |>
+  filter(polozka == "1511") |>
+  mutate(kraj_text = as.factor(kraj_text) |> fct_reorder(budget_spending / pocobyv)) |>
+  ggplot(aes(budget_spending, kraj_text)) +
+  geom_jitter_interactive(aes(tooltip = obec_text)) +
+  scale_color_viridis_b(breaks = scales::breaks_log(n = 8, base = 10)) +
+  guides() +
+  geom_boxplot(outliers = FALSE)
+
+dta |>
+  filter(polozka == "1511") |>
+  mutate(kraj_text = as.factor(kraj_text) |> fct_reorder(budget_spending / pocobyv)) |>
+  ggplot(aes(budget_spending, kraj_text)) +
+  geom_jitter_interactive(aes(tooltip = obec_text)) +
+  scale_color_viridis_b(breaks = scales::breaks_log(n = 8, base = 10)) +
+  scale_x_log10(breaks = scales::breaks_log(n = 8, base = 10)) +
+  guides() +
+  geom_boxplot(outliers = FALSE)
+
+dta |>
+  filter(polozka == "1511") |>
+  mutate(kraj_text = as.factor(kraj_text) |> fct_reorder(budget_spending / pocobyv)) |>
+  ggplot(aes(budget_spending, kraj_text)) +
+  geom_jitter(aes(colour = pocobyv)) +
+  scale_color_viridis_b(breaks = scales::breaks_log(n = 8, base = 10)) +
+  scale_x_log10(breaks = scales::breaks_log(n = 8, base = 10)) +
+  guides() +
+  geom_boxplot(outliers = FALSE)
+
+dta |>
+  filter(polozka == "1511") |>
+  mutate(kraj_text = as.factor(kraj_text) |> fct_reorder(budget_spending / pocobyv)) |>
+  ggplot(aes(pocobyv, budget_spending))+
+  geom_point(alpha = .4)
+
+dta |>
+  filter(polozka == "1511") |>
+  mutate(kraj_text = as.factor(kraj_text) |> fct_reorder(budget_spending / pocobyv)) |>
+  ggplot(aes(pocobyv/1000, budget_spending))+
+  geom_point(alpha = .4) +
+  scale_y_log10(breaks = scales::breaks_log(n = 8, base = 10)) +
+  scale_x_log10(breaks = scales::breaks_log(n = 4, base = 10))
+
 p_boxplot <- dta |>
-  filter(polozka_nazev == "Příjem z daně z nemovitých věcí", druhuj_nazev == "Obce") |>
+  filter(polozka == "1511") |>
   mutate(kraj_text = as.factor(kraj_text) |> fct_reorder(budget_spending / pocobyv)) |>
   ggplot(aes(budget_spending/pocobyv, kraj_text)) +
   geom_jitter_interactive(aes(tooltip = obec_text, colour = pocobyv)) +
@@ -122,7 +173,7 @@ girafe(ggobj = p_boxplot)
 
 
 p_dotplot <- dta |>
-  filter(polozka_nazev == "Příjem z daně z nemovitých věcí") |>
+  filter(polozka == "1511") |>
   mutate(kraj_text = as.factor(kraj_text) |> fct_reorder(budget_spending / pocobyv)) |>
   ggplot(aes(pocobyv/1000, budget_spending/pocobyv))+
   geom_point_interactive(aes(tooltip = obec_text), alpha = .4) +
@@ -132,7 +183,7 @@ p_dotplot <- dta |>
 girafe(ggobj = p_dotplot)
 
 p_dotplot_facet <- dta |>
-  filter(polozka_nazev == "Příjem z daně z nemovitých věcí") |>
+  filter(polozka == "1511") |>
   mutate(kraj_text = as.factor(kraj_text) |> fct_reorder(budget_spending / pocobyv)) |>
   ggplot(aes(pocobyv/1000, budget_spending/pocobyv))+
   geom_point_interactive(aes(tooltip = obec_text), alpha = .4) +

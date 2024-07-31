@@ -8,7 +8,6 @@ options(statnipokladna.dest_dir = "data-input/sp")
 orgs <- sp_get_codelist("ucjed")
 write_parquet(orgs, "data-processed/orgs_raw.parquet")
 
-orgs <- read_rds("data-processed/orgs_raw.rds")
 orgs <- read_parquet("data-processed/orgs_raw.parquet")
 
 orgs_proc <- orgs |>
