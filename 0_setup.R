@@ -3,15 +3,7 @@ install.packages(c("czso", "statnipokladna", "dplyr", "tidyr", "forcats",
 
 library(statnipokladna)
 library(readr)
+library(nanoparquet)
+library(dplyr)
 
-orgs <- sp_get_codelist("ucjed")
-write_rds(orgs, "data-processed/orgs_raw.rds")
-
-orgs <- read_rds("data-processed/orgs_raw.rds")
-
-orgs_proc <- orgs |> 
-  filter(start_date <= "2023-01-01", end_date > "2023-12-31") |> 
-  sp_add_codelist("druhuj") |> 
-  sp_add_codelist("poddruhuj")
-
-write_rds(orgs_proc, "data-processed/orgs_proc.rds")
+options(statnipokladna.dest_dir = "data-input/sp")
