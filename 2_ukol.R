@@ -110,9 +110,16 @@ dta |>
   filter(trida == "Daňové příjmy", seskupeni == "Příjem z majetkových daní") |>
   distinct(podseskupeni, polozka_nazev, polozka)
 
-# Ha! ---------------------------------------------------------------------
+# Ha!
 
-## Jak to vypadá? ---------------------------------------------------------
+# Vizualizace ---------------------------------------------------------------------
+
+## Vizuální průzkum ---------------------------------------------------------
+
+# Jak to vypadá?
+
+
+### Boxplot -----------------------------------------------------------------
 
 dta |>
   filter(polozka == "1511") |>
@@ -122,6 +129,8 @@ dta |>
   scale_color_viridis_b(breaks = scales::breaks_log(n = 8, base = 10)) +
   guides() +
   geom_boxplot(outliers = FALSE)
+
+# Hmm, potřebujeme log škály - jinak je to Praha vs zbytek
 
 dta |>
   filter(polozka == "1511") |>
@@ -133,21 +142,32 @@ dta |>
   guides() +
   geom_boxplot(outliers = FALSE)
 
+# Ale není to pořád tažené velikostí obce?
+
+hist(dta$pocobyv)
+
 dta |>
   filter(polozka == "1511") |>
   mutate(kraj_text = as.factor(kraj_text) |> fct_reorder(budget_spending / pocobyv)) |>
   ggplot(aes(budget_spending, kraj_text)) +
+  geom_boxplot(outliers = FALSE) +
   geom_jitter(aes(colour = pocobyv)) +
   scale_color_viridis_b(breaks = scales::breaks_log(n = 8, base = 10)) +
   scale_x_log10(breaks = scales::breaks_log(n = 8, base = 10)) +
-  guides() +
-  geom_boxplot(outliers = FALSE)
+  guides()
+
+# Jak to vypadá se vztahem těch dvou proměnných?
+
+
+### Scatter - populace a příjmy ---------------------------------------------
 
 dta |>
   filter(polozka == "1511") |>
   mutate(kraj_text = as.factor(kraj_text) |> fct_reorder(budget_spending / pocobyv)) |>
   ggplot(aes(pocobyv, budget_spending))+
   geom_point(alpha = .4)
+
+# Aha, potřebujeme ty logaritmické osy
 
 dta |>
   filter(polozka == "1511") |>
@@ -157,20 +177,26 @@ dta |>
   scale_y_log10(breaks = scales::breaks_log(n = 8, base = 10)) +
   scale_x_log10(breaks = scales::breaks_log(n = 4, base = 10))
 
+# Zkusíme tedy boxplot per capita s log škálou
+
+### Boxplot per capita ------------------------------------------------------
+
 p_boxplot <- dta |>
   filter(polozka == "1511") |>
   mutate(kraj_text = as.factor(kraj_text) |> fct_reorder(budget_spending / pocobyv)) |>
   ggplot(aes(budget_spending/pocobyv, kraj_text)) +
+  # příprava na interaktivní graf
+  geom_boxplot_interactive(outliers = FALSE) +
   geom_jitter_interactive(aes(tooltip = obec_text, colour = pocobyv)) +
   scale_color_viridis_b(breaks = scales::breaks_log(n = 8, base = 10)) +
   scale_x_log10(breaks = scales::breaks_log(n = 8, base = 10)) +
-  guides() +
-  geom_boxplot_interactive(outliers = FALSE)
+  guides()
 
 p_boxplot
 
 girafe(ggobj = p_boxplot)
 
+# A liší se per capita příjem podle velikosti?
 
 p_dotplot <- dta |>
   filter(polozka == "1511") |>
@@ -182,6 +208,11 @@ p_dotplot <- dta |>
 
 girafe(ggobj = p_dotplot)
 
+# Jak je to mezi kraji?
+
+
+### Krajský rozpad ----------------------------------------------------------
+
 p_dotplot_facet <- dta |>
   filter(polozka == "1511") |>
   mutate(kraj_text = as.factor(kraj_text) |> fct_reorder(budget_spending / pocobyv)) |>
@@ -192,3 +223,20 @@ p_dotplot_facet <- dta |>
   facet_wrap(~kraj_text)
 
 girafe(ggobj = p_dotplot_facet)
+
+## Mapa --------------------------------------------------------------------
+
+geo_obce <- RCzechia::obce_body()
+
+tmap_mode("view")
+
+geo_obce |>
+  left_join(dta |> filter(polozka == "1511"),
+            by = join_by(KOD_OBEC == zuj_id)) |>
+  drop_na(obec_text) |>
+  mutate(ptax_percap = budget_spending/pocobyv) |>
+  tm_shape("obec_text") +
+  tm_basemap() +
+  tm_bubbles(size = "pocobyv", col = "ptax_percap",
+             popup.vars=c("Název" = "obec_text", "DzN per capita" = "ptax_percap",
+                          "Počet obyvatel" = "pocobyv"), id="obec_text")
