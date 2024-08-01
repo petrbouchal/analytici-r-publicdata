@@ -9,7 +9,7 @@ lang: cs
 ---
 
 
-```{r}
+```{r setup}
 library(czso)
 library(statnipokladna)
 library(dplyr)
@@ -25,24 +25,24 @@ library(tmap)
 
 Kam se ukládají stažené soubory?
 
-```{r}
+```{r options}
 options(statnipokladna.dest_dir = "data-input/sp")
 options(czso.dest_dir = "data-input/czso")
 ```
 
 Nepoužívat exponenciální zobrazení čísel:
 
-```{r}
+```{r scipen}
 options(scipen = 99)
 ```
 
 # Načíst rozpočtová data obcí za rok 2023
 
-```{r}
+```{r sp_tables}
 sp_tables
 ```
 
-```{r}
+```{r budget}
 rozp_mist <- sp_get_table("budget-local", year = 2023, month = 12)
 colnames(rozp_mist)
 skimr::skim(rozp_mist)
@@ -50,17 +50,17 @@ skimr::skim(rozp_mist)
 
 # Údaje o obcích  
 
-```{r}
+```{r uzemi}
 struktura_uzemi <- czso_get_table("struktura_uzemi_cr")
 ```
 
 ## Obce a jejich počty obyvatel  
 
-```{r}
+```{r kat}
 czso_kat <- czso_get_catalogue()
 ```
 
-```{r}
+```{r kat-filter}
 czso_kat |>
   czso_filter_catalogue(c("obyv", "obce")) |>
   select(title, description, dataset_id)
@@ -68,43 +68,43 @@ czso_kat |>
 
 # Načíst tuto sadu
 
-```{r}
+```{r obyv}
 obyv_obce0 <- czso_get_table("130149")
 ```
 
 Co znamenají položky?
 
-```{r}
+```{r obyv-schema}
 czso_get_table_schema("130149")
 ```
 
 Pozor, obsahuje data za různé typy území
 
-```{r}
+```{r obyv-skim}
 skimr::skim(obyv_obce0)
 ```
 
-```{r}
+```{r obyv-years}
 obyv_obce0 |>
   count(uzemi_cis, obdobi) |>
   spread(uzemi_cis, n)
 ```
 
-```{r}
+```{r obyv-uzemi}
 obyv_obce0 |>
   count(uzemi_typ)
 ```
 
 # A taky věkový rozpad
 
-```{r}
+```{r obyv-vek}
 obyv_obce0 |>
   count(vek_txt)
 ```
 
 # Vyberme tedy jen to, co potřebujeme
 
-```{r}
+```{r obyv-sub}
 obyv_obce <- obyv_obce0 |>
   filter(uzemi_typ == "obec", obdobi == "2023-12-31",
          is.na(pohlavi_kod), is.na(vek_kod)) |>
@@ -115,7 +115,7 @@ obyv_obce <- obyv_obce0 |>
 
 Vybrat obce, které jsou sídlem ORP 
 
-```{r}
+```{r centra}
 centra_orp <- struktura_uzemi |>
   filter(obec_kod == orp_sidlo_obec_kod)
 ```
@@ -124,14 +124,14 @@ centra_orp <- struktura_uzemi |>
 
 Ty jsou předpřipravané, viz 00_preprocess.R, obsahují jen obce platné v roce 2023
 
-```{r}
+```{r orgs}
 orgs <- read_parquet("data-processed/orgs_proc.parquet")
 names(orgs)
 ```
 
 Slepit vše dohromady
 
-```{r}
+```{r merge}
 dta <- rozp_mist |>
   # funkce na správné přiřazení číselníku k datům SP
   sp_add_codelist(orgs, by = "ico") |>
@@ -148,19 +148,19 @@ names(dta)
 length(unique(dta$ico))
 ```
 
-# Jak se dobrat daně z nemovitosti? ---------------------------------------
+# Jak se dobrat daně z nemovitosti?
 
-```{r}
+```{r dzn-hledame1}
 dta |>
   distinct(druh, trida)
 ```
 
-```{r}
+```{r dzn-hledame2}
 dta |>
   distinct(druh, seskupeni)
 ```
 
-```{r}
+```{r dzn-hledame3}
 dta |>
   filter(trida == "Daňové příjmy", seskupeni == "Příjem z majetkových daní") |>
   distinct(podseskupeni, polozka_nazev, polozka)
@@ -176,7 +176,7 @@ Jak to vypadá?
 
 ### Boxplot
 
-```{r}
+```{r boxplot-raw}
 dta |>
   filter(polozka == "1511") |>
   mutate(kraj_text = as.factor(kraj_text) |> fct_reorder(budget_spending / pocobyv)) |>
@@ -190,7 +190,7 @@ dta |>
 
 Hmm, potřebujeme log škály - jinak je to Praha vs zbytek
 
-```{r}
+```{r boxplot-log}
 dta |>
   filter(polozka == "1511") |>
   mutate(kraj_text = as.factor(kraj_text) |> fct_reorder(budget_spending / pocobyv)) |>
@@ -204,11 +204,11 @@ dta |>
 
 Ale není to pořád tažené velikostí obce?
 
-```{r}
+```{r hist-populace}
 hist(dta$pocobyv)
 ```
 
-```{r}
+```{r boxplot-pop}
 dta |>
   filter(polozka == "1511") |>
   mutate(kraj_text = as.factor(kraj_text) |> fct_reorder(budget_spending / pocobyv)) |>
@@ -224,7 +224,7 @@ Jak to vypadá se vztahem těch dvou proměnných?
 
 ### Scatter - populace a příjmy
 
-```{r}
+```{r scatter}
 dta |>
   filter(polozka == "1511") |>
   mutate(kraj_text = as.factor(kraj_text) |> fct_reorder(budget_spending / pocobyv)) |>
@@ -234,7 +234,7 @@ dta |>
 
 Aha, potřebujeme ty logaritmické osy
 
-```{r}
+```{r scatter-log}
 dta |>
   filter(polozka == "1511") |>
   mutate(kraj_text = as.factor(kraj_text) |> fct_reorder(budget_spending / pocobyv)) |>
@@ -245,9 +245,10 @@ dta |>
 ```
 
 Zkusíme tedy boxplot per capita s log škálou
+
 ### Boxplot per capita
 
-```{r}
+```{r boxplot-percap}
 p_boxplot <- dta |>
   filter(polozka == "1511") |>
   mutate(kraj_text = as.factor(kraj_text) |> fct_reorder(budget_spending / pocobyv)) |>
@@ -260,11 +261,11 @@ p_boxplot <- dta |>
   guides()
 ```
 
-```{r}
+```{r boxplot-static}
 p_boxplot
 ```
 
-```{r}
+```{r boxplot-interactive}
 girafe(ggobj = p_boxplot)
 ```
 
@@ -272,7 +273,7 @@ girafe(ggobj = p_boxplot)
 A liší se per capita příjem podle velikosti?
 
 
-```{r}
+```{r scatter-interactive}
 p_dotplot <- dta |>
   filter(polozka == "1511") |>
   mutate(kraj_text = as.factor(kraj_text) |> fct_reorder(budget_spending / pocobyv)) |>
@@ -288,7 +289,7 @@ Jak je to mezi kraji?
 
 ### Krajský rozpad
 
-```{r}
+```{r scatter-kraje}
 p_dotplot_facet <- dta |>
   filter(polozka == "1511") |>
   mutate(kraj_text = as.factor(kraj_text) |> fct_reorder(budget_spending / pocobyv)) |>
@@ -303,17 +304,17 @@ girafe(ggobj = p_dotplot_facet)
 
 ## Mapa
 
-```{r}
+```{r map-set}
 tmap_mode("view")
 ```
 
 
-```{r}
+```{r geo-load}
 geo_obce <- RCzechia::obce_body()
 ```
 
 
-```{r}
+```{r map-draw}
 geo_obce |>
   left_join(dta |> filter(polozka == "1511"),
             by = join_by(KOD_OBEC == zuj_id)) |>
