@@ -1,0 +1,328 @@
+---
+title: Úkol
+author: Ana Lytická
+format: html
+date: today
+execute: 
+  echo: true
+lang: cs
+---
+
+
+```{r}
+library(czso)
+library(statnipokladna)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(forcats)
+library(ggiraph)
+library(nanoparquet)
+library(tmap)
+```
+
+# Nastavení
+
+Kam se ukládají stažené soubory?
+
+```{r}
+options(statnipokladna.dest_dir = "data-input/sp")
+options(czso.dest_dir = "data-input/czso")
+```
+
+Nepoužívat exponenciální zobrazení čísel:
+
+```{r}
+options(scipen = 99)
+```
+
+# Načíst rozpočtová data obcí za rok 2023
+
+```{r}
+sp_tables
+```
+
+```{r}
+rozp_mist <- sp_get_table("budget-local", year = 2023, month = 12)
+colnames(rozp_mist)
+skimr::skim(rozp_mist)
+```
+
+# Údaje o obcích  
+
+```{r}
+struktura_uzemi <- czso_get_table("struktura_uzemi_cr")
+```
+
+## Obce a jejich počty obyvatel  
+
+```{r}
+czso_kat <- czso_get_catalogue()
+```
+
+```{r}
+czso_kat |>
+  czso_filter_catalogue(c("obyv", "obce")) |>
+  select(title, description, dataset_id)
+```
+
+# Načíst tuto sadu
+
+```{r}
+obyv_obce0 <- czso_get_table("130149")
+```
+
+Co znamenají položky?
+
+```{r}
+czso_get_table_schema("130149")
+```
+
+Pozor, obsahuje data za různé typy území
+
+```{r}
+skimr::skim(obyv_obce0)
+```
+
+```{r}
+obyv_obce0 |>
+  count(uzemi_cis, obdobi) |>
+  spread(uzemi_cis, n)
+```
+
+```{r}
+obyv_obce0 |>
+  count(uzemi_typ)
+```
+
+# A taky věkový rozpad
+
+```{r}
+obyv_obce0 |>
+  count(vek_txt)
+```
+
+# Vyberme tedy jen to, co potřebujeme
+
+```{r}
+obyv_obce <- obyv_obce0 |>
+  filter(uzemi_typ == "obec", obdobi == "2023-12-31",
+         is.na(pohlavi_kod), is.na(vek_kod)) |>
+  # Přejmenovat sloupce, abychom se v tom vyznali
+  select(pocobyv = hodnota, obec_kod = uzemi_kod)
+```
+
+
+Vybrat obce, které jsou sídlem ORP 
+
+```{r}
+centra_orp <- struktura_uzemi |>
+  filter(obec_kod == orp_sidlo_obec_kod)
+```
+
+## Načíst metadata organizací ve SP
+
+Ty jsou předpřipravané, viz 00_preprocess.R, obsahují jen obce platné v roce 2023
+
+```{r}
+orgs <- read_parquet("data-processed/orgs_proc.parquet")
+names(orgs)
+```
+
+Slepit vše dohromady
+
+```{r}
+dta <- rozp_mist |>
+  # funkce na správné přiřazení číselníku k datům SP
+  sp_add_codelist(orgs, by = "ico") |>
+  # připojíme číselník obcí ORP, necháme jen jejich data
+  inner_join(centra_orp, by = join_by(zuj_id == obec_kod)) |>
+  # připojíme údaje o počty obyvatel
+  left_join(obyv_obce, by = join_by(zuj_id == obec_kod)) |>
+  # přidáme číselník druhového členění rozpočtové skladby
+  sp_add_codelist("polozka")
+names(dta)
+```
+
+```{r}
+length(unique(dta$ico))
+```
+
+# Jak se dobrat daně z nemovitosti? ---------------------------------------
+
+```{r}
+dta |>
+  distinct(druh, trida)
+```
+
+```{r}
+dta |>
+  distinct(druh, seskupeni)
+```
+
+```{r}
+dta |>
+  filter(trida == "Daňové příjmy", seskupeni == "Příjem z majetkových daní") |>
+  distinct(podseskupeni, polozka_nazev, polozka)
+```
+
+Ha!
+
+# Vizualizace
+
+## Vizuální průzkum 
+
+Jak to vypadá?
+
+### Boxplot
+
+```{r}
+dta |>
+  filter(polozka == "1511") |>
+  mutate(kraj_text = as.factor(kraj_text) |> fct_reorder(budget_spending / pocobyv)) |>
+  ggplot(aes(budget_spending, kraj_text)) +
+  geom_jitter_interactive(aes(tooltip = obec_text)) +
+  scale_color_viridis_b(breaks = scales::breaks_log(n = 8, base = 10)) +
+  guides() +
+  geom_boxplot(outliers = FALSE)
+```
+
+
+Hmm, potřebujeme log škály - jinak je to Praha vs zbytek
+
+```{r}
+dta |>
+  filter(polozka == "1511") |>
+  mutate(kraj_text = as.factor(kraj_text) |> fct_reorder(budget_spending / pocobyv)) |>
+  ggplot(aes(budget_spending, kraj_text)) +
+  geom_jitter_interactive(aes(tooltip = obec_text)) +
+  scale_color_viridis_b(breaks = scales::breaks_log(n = 8, base = 10)) +
+  scale_x_log10(breaks = scales::breaks_log(n = 8, base = 10)) +
+  guides() +
+  geom_boxplot(outliers = FALSE)
+```
+
+Ale není to pořád tažené velikostí obce?
+
+```{r}
+hist(dta$pocobyv)
+```
+
+```{r}
+dta |>
+  filter(polozka == "1511") |>
+  mutate(kraj_text = as.factor(kraj_text) |> fct_reorder(budget_spending / pocobyv)) |>
+  ggplot(aes(budget_spending, kraj_text)) +
+  geom_boxplot(outliers = FALSE) +
+  geom_jitter(aes(colour = pocobyv)) +
+  scale_color_viridis_b(breaks = scales::breaks_log(n = 8, base = 10)) +
+  scale_x_log10(breaks = scales::breaks_log(n = 8, base = 10)) +
+  guides()
+```
+
+Jak to vypadá se vztahem těch dvou proměnných?
+
+### Scatter - populace a příjmy
+
+```{r}
+dta |>
+  filter(polozka == "1511") |>
+  mutate(kraj_text = as.factor(kraj_text) |> fct_reorder(budget_spending / pocobyv)) |>
+  ggplot(aes(pocobyv, budget_spending))+
+  geom_point(alpha = .4)
+```
+
+Aha, potřebujeme ty logaritmické osy
+
+```{r}
+dta |>
+  filter(polozka == "1511") |>
+  mutate(kraj_text = as.factor(kraj_text) |> fct_reorder(budget_spending / pocobyv)) |>
+  ggplot(aes(pocobyv/1000, budget_spending))+
+  geom_point(alpha = .4) +
+  scale_y_log10(breaks = scales::breaks_log(n = 8, base = 10)) +
+  scale_x_log10(breaks = scales::breaks_log(n = 4, base = 10))
+```
+
+Zkusíme tedy boxplot per capita s log škálou
+### Boxplot per capita
+
+```{r}
+p_boxplot <- dta |>
+  filter(polozka == "1511") |>
+  mutate(kraj_text = as.factor(kraj_text) |> fct_reorder(budget_spending / pocobyv)) |>
+  ggplot(aes(budget_spending/pocobyv, kraj_text)) +
+  # příprava na interaktivní graf
+  geom_boxplot_interactive(outliers = FALSE) +
+  geom_jitter_interactive(aes(tooltip = obec_text, colour = pocobyv)) +
+  scale_color_viridis_b(breaks = scales::breaks_log(n = 8, base = 10)) +
+  scale_x_log10(breaks = scales::breaks_log(n = 8, base = 10)) +
+  guides()
+```
+
+```{r}
+p_boxplot
+```
+
+```{r}
+girafe(ggobj = p_boxplot)
+```
+
+
+A liší se per capita příjem podle velikosti?
+
+
+```{r}
+p_dotplot <- dta |>
+  filter(polozka == "1511") |>
+  mutate(kraj_text = as.factor(kraj_text) |> fct_reorder(budget_spending / pocobyv)) |>
+  ggplot(aes(pocobyv/1000, budget_spending/pocobyv))+
+  geom_point_interactive(aes(tooltip = obec_text), alpha = .4) +
+  scale_y_log10(breaks = scales::breaks_log(n = 8, base = 10)) +
+  scale_x_log10(breaks = scales::breaks_log(n = 4, base = 10))
+
+girafe(ggobj = p_dotplot)
+```
+
+Jak je to mezi kraji?
+
+### Krajský rozpad
+
+```{r}
+p_dotplot_facet <- dta |>
+  filter(polozka == "1511") |>
+  mutate(kraj_text = as.factor(kraj_text) |> fct_reorder(budget_spending / pocobyv)) |>
+  ggplot(aes(pocobyv/1000, budget_spending/pocobyv))+
+  geom_point_interactive(aes(tooltip = obec_text), alpha = .4) +
+  scale_y_log10(breaks = scales::breaks_log(n = 8, base = 10)) +
+  scale_x_log10(breaks = scales::breaks_log(n = 4, base = 10)) +
+  facet_wrap(~kraj_text)
+
+girafe(ggobj = p_dotplot_facet)
+```
+
+## Mapa
+
+```{r}
+tmap_mode("view")
+```
+
+
+```{r}
+geo_obce <- RCzechia::obce_body()
+```
+
+
+```{r}
+geo_obce |>
+  left_join(dta |> filter(polozka == "1511"),
+            by = join_by(KOD_OBEC == zuj_id)) |>
+  drop_na(obec_text) |>
+  mutate(ptax_percap = budget_spending/pocobyv) |>
+  tm_shape("obec_text") +
+  tm_basemap() +
+  tm_bubbles(size = "pocobyv", col = "ptax_percap",
+             popup.vars=c("Název" = "obec_text", "DzN per capita" = "ptax_percap",
+                          "Počet obyvatel" = "pocobyv"), id="obec_text")
+```
+

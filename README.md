@@ -13,6 +13,7 @@ Co dělají které soubory:
 - 0_setup.R: instalace potřebných balíků
 - 1_explorace.R: kód na zkoušení hledání v katalogu a načtení dat ČSÚ
 - 2_ukol.R: skript i s komentáři pro řešení ukázkového úkolu
+- 2_ukol.qmd: totéž ve formě Quarto dokumentu
 - 3_ukol-usporne.R: úkol bez komentářů a náhledů dat
 - 4_eurostat.R: řešení úkolu k mezinárodnímu srovnání
 - index.qmd: zdrojový soubor slides
