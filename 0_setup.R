@@ -1,4 +1,5 @@
 install.packages(c("czso", "statnipokladna", "dplyr", "tidyr", "forcats",
+                   "ggiraph", "tmap",
                    "lubridate", "RCzechia", "ggplot2", "readr", "nanoparquet"))
 
 library(statnipokladna)
