@@ -203,13 +203,18 @@ head(rozp_obce)
 
 <https://github.com/petrbouchal/analytici-r-publicdata/archive/refs/heads/main.zip>
 
+## Dodatečné úkoly:
+
+- vyrobte mapu!
+- udělejte totéž pro státy EU
+
 ## Balíky na veřejná data
 
-- eurostat
-- wbdata
-- oecd
-- giscoR
-- WDI
+- eurostat (viz i [klikací katalog](https://ec.europa.eu/eurostat/web/main/data/database))
+- wbdata: Světová banka
+- oecd: OECD
+- giscoR: oficiální evropská geodata území
+- WDI: část data Světové banky
 - statistické úřady po světě: viz [CRAN Task View](https://cran.r-project.org/web/views/OfficialStatistics.html#access)
 
 ### Česká data
@@ -217,16 +222,22 @@ head(rozp_obce)
 - RCzechia, CzechData
 - statnipokladna
 - czso
-- vsezved
-- hlidacr
-- pragr
-- ispv
+- vsezved: rejstříky a seznamy škol
+- hlidacr: data Hlídače státu
+- pragr: geodata o Praze
+- ispv: Informační systém o průměrném výdělku ("Trexima")
+
+Viz též 
+- https://github.com/kokes/knod
+- https://github.com/kokes/od
 
 ### Pomůcky
 
 - countrycode
 - nuts
 - regions
+
+# Otázky? Tipy? Nápady?
 
 ---
 
