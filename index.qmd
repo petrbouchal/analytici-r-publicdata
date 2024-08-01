@@ -1,0 +1,233 @@
+---
+title: "Veřejná data v R"
+subtitle: "Workshop pro analytiky"
+author: srpen 2024
+format: 
+  revealjs:
+    theme: [default, custom.scss]
+    mathjax: null
+    slide-level: 3
+    progress: false
+    preview-links: true
+execute:
+    echo: true
+  
+editor: visual
+---
+
+```{r, echo=FALSE}
+library(dplyr)
+library(czso)
+library(statnipokladna)
+library(gt)
+```
+
+
+# Cíle
+
+- zorientovat se ve zdrojích dat
+- pochopit, jak je dostáváme do R
+- naučit se s nimi pracovat na příkladu statistik a fiskálních dat
+
+---
+
+## Veřejná data: proč v R
+
+- strojově čitelná data pro analýzu rovnou v R
+- reprodukovatelný postup
+- automatizace
+- update při každém spuštění
+
+Ale pozor:
+
+- online zdroj se může změnit/zmizet
+- tedy: třeba zaznamenávat, zachytit i data
+- reprodukovatelnost vs. automatizace
+
+
+## Veřejná data: jak
+
+- API (služba, která vydává data na požádání)
+- soubory
+- výjimečně specifické služby (geocoding)
+
+R (balíček) jako rozhraní pro přístup k API nebo datovým sadám
+
+## Veřejná data: co
+
+- jaké informace: katalog + datové sady
+- jaká data: data + číselníky
+- obsah: typicky statistiky a standardizované datové sady
+- od koho: statistické úřady, mezinárodní organizace, státy obecně, NGOs
+- forma: tabulky v long formátu
+---
+
+### Logika načítání dat z API nebo souborů
+
+1. Balík postytuje přístup ke katalogu. Tam hledej požadovanou položku, zachyť její ID
+1. Načti data podle ID, dostaneš data.frame. Balík se stará o to, odkud se data berou
+1. U některých zdrojů lze rovnou filtrovat nebo poslat SQL dotaz
+1. Některé zdroje/balíky umožňují vyžádat rovnou "rozklíčované" číselníky
+1. Podle potřeby se (ne)starej o to, kde se skladují mezivýstupy
+1. Stáhni a napoj číselníky
+
+### Míra kontroly dle potřeby
+
+```{mermaid}
+%%| echo: FALSE
+
+flowchart LR
+    A[Table ID] -->|"sp_get_table()"| B(Data frame)
+    A[Table ID] -->|"sp_get_table(dest_dir = '~/data')"| M(ZIP file)
+    A[Table ID] -->|"sp_get_table(dest_dir = 'data')"| N(ZIP file)
+    M --> O(CSV file)
+    N --> P(CSV file)
+    O --> B
+    P --> B
+    A --> |"sp_get_dataset_url()"| C(URL)
+    C --> |"sp_get_dataset(url)"| H(ZIP file)
+    C --> |"sp_get_dataset(url, dest_dir = 'data')"| F(ZIP file)
+    C --> |"sp_get_dataset(url, dest_dir = '~/data')"| I(ZIP file)
+    H --> |"sp_get_table_file()"| X(cesta k CSV)
+    F --> |"sp_get_table_file()"| Y(cesta k CSV)
+    I --> |"sp_get_table_file()"| Z(cesta k CSV)
+    X --> |"sp_load_table()"| B
+    Y --> |"sp_load_table()"| B
+    Z --> |"sp_load_table()"| B
+```
+
+---
+
+# Příklad: katalog ČSÚ
+
+```{r}
+#| results: 'asis'
+library(czso)
+czso_get_catalogue() |> head() |> gt::gt()
+```
+
+## Přehledněji
+
+```{r}
+czso_get_catalogue() |> head() |> select(title, dataset_id) |> gt()
+```
+
+## Prohledáme katalog
+
+```{r}
+czsokat <- czso_get_catalogue()
+czso_filter_catalogue(czsokat, c("obce", "obyvatel", "2023")) |> 
+  select(title, dataset_id, description) |> t()
+```
+
+
+## Načteme si data ČSÚ
+
+```{r}
+czso_get_table("130141r24")
+```
+
+
+## Načteme číselník
+
+```{r}
+czso_get_codelist(43)
+```
+
+### Číselník vazeb
+
+```{r}
+czso_get_catalogue(c("vazba", "orp", "obec")) |> select(title, dataset_id)
+```
+
+
+```{r}
+czso_get_codelist("cis43vaz65")
+```
+
+
+## Bonus: struktura území
+
+```{r}
+czso_get_catalogue(search_terms = c("struktura", "území")) |> select(title, dataset_id)
+```
+
+
+```{r}
+czso_get_table("struktura_uzemi_cr")
+```
+
+
+---
+
+# Otázka
+
+> Jak se liší příjmy obcí s RP z daně za nemovitostí v jednotlivých krajích?
+
+---
+
+## Státní pokladna: katalog
+
+```{r}
+library(statnipokladna)
+statnipokladna::sp_datasets
+```
+
+---
+
+```{r}
+statnipokladna::sp_tables
+```
+## Načteme rozpočty obcí
+
+```{r}
+rozp_obce <- sp_get_table("budget-local", year = 2023, dest_dir = "data-input/sp")
+```
+
+```{r}
+dim(rozp_obce)
+```
+
+
+```{r}
+colnames(rozp_obce)
+```
+
+```{r}
+head(rozp_obce)
+```
+
+## Jdeme na kód
+
+<https://github.com/petrbouchal/analytici-r-publicdata>
+
+<https://github.com/petrbouchal/analytici-r-publicdata/archive/refs/heads/main.zip>
+
+## Balíky na veřejná data
+
+- eurostat
+- wbdata
+- oecd
+- giscoR
+- WDI
+- statistické úřady po světě: viz [CRAN Task View](https://cran.r-project.org/web/views/OfficialStatistics.html#access)
+
+### Česká data
+
+- RCzechia, CzechData
+- statnipokladna
+- czso
+- vsezved
+- hlidacr
+- pragr
+- ispv
+
+### Pomůcky
+
+- countrycode
+- nuts
+- regions
+
+---
+
+
