@@ -6,6 +6,7 @@ library(tidyr)
 library(forcats)
 library(ggiraph)
 library(nanoparquet)
+library(tmap)
 
 
 # Nastavení ---------------------------------------------------------------
