@@ -22,54 +22,57 @@ library(statnipokladna)
 library(gt)
 ```
 
-
 # Cíle
 
-- zorientovat se ve zdrojích dat
-- pochopit, jak je dostáváme do R
-- naučit se s nimi pracovat na příkladu statistik a fiskálních dat
+-   zorientovat se ve zdrojích dat
+-   pochopit, jak je dostáváme do R
+-   naučit se s nimi pracovat na příkladu statistik a fiskálních dat
 
----
+------------------------------------------------------------------------
 
 ## Veřejná data: proč v R
 
-- strojově čitelná data pro analýzu rovnou v R
-- reprodukovatelný postup
-- automatizace
-- update při každém spuštění
+-   strojově čitelná data pro analýzu rovnou v R
+-   reprodukovatelný postup
+-   automatizace
+-   update při každém spuštění
 
 Ale pozor:
 
-- online zdroj se může změnit/zmizet
-- tedy: třeba zaznamenávat, zachytit i data
-- reprodukovatelnost vs. automatizace
-
+-   online zdroj se může změnit/zmizet
+-   tedy: třeba zaznamenávat, zachytit i data
+-   reprodukovatelnost vs. automatizace
 
 ## Veřejná data: jak
 
-- API (služba, která vydává data na požádání)
-- soubory
-- výjimečně specifické služby (geocoding)
+-   API (služba, která vydává data na požádání)
+-   soubory
+-   výjimečně specifické služby (geocoding)
 
 R (balíček) jako rozhraní pro přístup k API nebo datovým sadám
 
 ## Veřejná data: co
 
-- jaké informace: katalog + datové sady
-- jaká data: data + číselníky
-- obsah: typicky statistiky a standardizované datové sady
-- od koho: statistické úřady, mezinárodní organizace, státy obecně, NGOs
-- forma: tabulky v long formátu
----
+-   jaké informace: katalog + datové sady
+
+-   jaká data: data + číselníky
+
+-   obsah: typicky statistiky a standardizované datové sady
+
+-   od koho: statistické úřady, mezinárodní organizace, státy obecně, NGOs
+
+-   
+
+    ## forma: tabulky v long formátu
 
 ### Logika načítání dat z API nebo souborů
 
-1. Balík postytuje přístup ke katalogu. Tam hledej požadovanou položku, zachyť její ID
-1. Načti data podle ID, dostaneš data.frame. Balík se stará o to, odkud se data berou
-1. U některých zdrojů lze rovnou filtrovat nebo poslat SQL dotaz
-1. Některé zdroje/balíky umožňují vyžádat rovnou "rozklíčované" číselníky
-1. Podle potřeby se (ne)starej o to, kde se skladují mezivýstupy
-1. Stáhni a napoj číselníky
+1.  Balík postytuje přístup ke katalogu. Tam hledej požadovanou položku, zachyť její ID
+2.  Načti data podle ID, dostaneš data.frame. Balík se stará o to, odkud se data berou
+3.  U některých zdrojů lze rovnou filtrovat nebo poslat SQL dotaz
+4.  Některé zdroje/balíky umožňují vyžádat rovnou "rozklíčované" číselníky
+5.  Podle potřeby se (ne)starej o to, kde se skladují mezivýstupy
+6.  Stáhni a napoj číselníky
 
 ### Míra kontroly dle potřeby
 
@@ -96,7 +99,7 @@ flowchart LR
     Z --> |"sp_load_table()"| B
 ```
 
----
+------------------------------------------------------------------------
 
 # Příklad: katalog ČSÚ
 
@@ -120,13 +123,11 @@ czso_filter_catalogue(czsokat, c("obce", "obyvatel", "2023")) |>
   select(title, dataset_id, description) |> t()
 ```
 
-
 ## Načteme si data ČSÚ
 
 ```{r}
 czso_get_table("130141r24")
 ```
-
 
 ## Načteme číselník
 
@@ -140,11 +141,9 @@ czso_get_codelist(43)
 czso_get_catalogue(c("vazba", "orp", "obec")) |> select(title, dataset_id)
 ```
 
-
 ```{r}
 czso_get_codelist("cis43vaz65")
 ```
-
 
 ## Bonus: struktura území
 
@@ -152,19 +151,36 @@ czso_get_codelist("cis43vaz65")
 czso_get_catalogue(search_terms = c("struktura", "území")) |> select(title, dataset_id)
 ```
 
-
 ```{r}
 czso_get_table("struktura_uzemi_cr")
 ```
 
+Existuje i verze se změnami v čase, ale v Excelu, viz <https://csu.gov.cz/i_zakladni_uzemni_ciselniky_na_uzemi_cr_a_klasifikace_cz_nuts>.
 
----
+------------------------------------------------------------------------
+
+## Data ČSÚ o území
+
+ČSÚ taky kompiluje databáze základních informací o území po letech, za kraje a obce. Struktura je složitější než běžná otevřená data ČSÚ, je ale konzistentní a může se to hodit.
+
+- [databáze KROK](https://www.czso.cz/csu/czso/databaze-krok-otevrena-data)
+- [databáze MOS](https://www.czso.cz/csu/czso/databaze-mos-otevrena-data)
+
+------------------------------------------------------------------------
+
+## Všechna metadata ČSÚ
+
+lze hledat v tzv. databázi metainformací 
+
+<https://apl2.czso.cz/iSMS/>
+
+------------------------------------------------------------------------
 
 # Otázka
 
 > Jak se liší příjmy obcí s RP z daně za nemovitostí v jednotlivých krajích?
 
----
+------------------------------------------------------------------------
 
 ## Státní pokladna: katalog
 
@@ -173,11 +189,12 @@ library(statnipokladna)
 statnipokladna::sp_datasets
 ```
 
----
+------------------------------------------------------------------------
 
 ```{r}
 statnipokladna::sp_tables
 ```
+
 ## Načteme rozpočty obcí
 
 ```{r}
@@ -187,7 +204,6 @@ rozp_obce <- sp_get_table("budget-local", year = 2023, dest_dir = "data-input/sp
 ```{r}
 dim(rozp_obce)
 ```
-
 
 ```{r}
 colnames(rozp_obce)
@@ -205,40 +221,38 @@ head(rozp_obce)
 
 ## Dodatečné úkoly:
 
-- vyrobte mapu!
-- udělejte totéž pro státy EU
+-   vyrobte mapu!
+-   udělejte totéž pro státy EU
 
 ## Balíky na veřejná data
 
-- eurostat (viz i [klikací katalog](https://ec.europa.eu/eurostat/web/main/data/database))
-- wbdata: Světová banka
-- oecd: OECD
-- giscoR: oficiální evropská geodata území
-- WDI: část data Světové banky
-- statistické úřady po světě: viz [CRAN Task View](https://cran.r-project.org/web/views/OfficialStatistics.html#access)
+-   eurostat (viz i [klikací katalog](https://ec.europa.eu/eurostat/web/main/data/database))
+-   wbdata: Světová banka
+-   oecd: OECD
+-   giscoR: oficiální evropská geodata území
+-   WDI: část data Světové banky
+-   statistické úřady po světě: viz [CRAN Task View](https://cran.r-project.org/web/views/OfficialStatistics.html#access)
 
 ### Česká data
 
-- RCzechia, CzechData
-- statnipokladna
-- czso
-- vsezved: rejstříky a seznamy škol
-- hlidacr: data Hlídače státu
-- pragr: geodata o Praze
-- ispv: Informační systém o průměrném výdělku ("Trexima")
+-   RCzechia, CzechData
+-   statnipokladna
+-   czso
+-   vsezved: rejstříky a seznamy škol
+-   hlidacr: data Hlídače státu
+-   pragr: geodata o Praze
+-   ispv: Informační systém o průměrném výdělku ("Trexima")
 
-Viz též 
-- https://github.com/kokes/knod
-- https://github.com/kokes/od
+Viz též - https://github.com/kokes/knod - https://github.com/kokes/od
 
 ### Pomůcky
 
-- countrycode
-- nuts
-- regions
+-   countrycode
+-   nuts
+-   regions
 
 # Otázky? Tipy? Nápady?
 
----
+<petr.bouchal@vlada.gov.cz>
 
-
+------------------------------------------------------------------------
